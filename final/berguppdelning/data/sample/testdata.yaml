@@ -1,0 +1,7 @@
+on_reject: continue
+range: 0 0
+accept_score: 0
+grader_flags: first_error
+input_validator_flags: t=0 r=2 c=2 n=3 noise=
+input_validator_flags: t=0 r=4 c=6 n=6 noise=
+grading: default

@@ -1,0 +1,123 @@
+\documentclass{article}
+
+\usepackage{parskip}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{textcomp}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{gensymb}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\newtheorem{lemma}{Lemma}
+\usepackage[utf8]{inputenc}
+\usepackage{minted}
+\usepackage{float}
+\lstset{language=c++,breaklines=true}
+\lstset{language=C++,
+basicstyle=\ttfamily,
+keywordstyle=\color{blue}\ttfamily,
+stringstyle=\color{red}\ttfamily,
+commentstyle=\color{OliveGreen}\ttfamily,
+morecomment=[l][\color{magenta}]{\#},
+literate=%
+{Ö}{{\"O}}1
+{Ä}{{\"A}}1
+{Å}{{\AA}}1
+{ä}{{\"a}}1
+{ö}{{\"o}}1
+{å}{{\aa}}1
+}
+
+\title{Lösningsförslag Hoppers Finalen 2023}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Hoppers}
+\subsection*{Subtask 1}
+Det tar $O(n)$ att flytta alla saker 1 steg framåt. Det längsta en sak kan röra sig är $O(RC)$ steg innan den hamnhar i en cykel eller kolliderar. Därmed får vi en komplexitet av $O(RCN)$.
+
+\subsection*{Subtask 2}
+Denna subtask kräver flera insikter.
+\begin{enumerate}
+\item Problemet är ett grafproblem. Varje ruta är en nod och det går en kant till en annan ruta, indikerat av pilen på rutan. Från och med nu finns det risk att jag blandar ruta och nod.
+\item Grafen är inte bara en riktad graf, utan mer specifikt en funktionell graf. Det vill säga, varje nod har utgrad 1 (bara en kant som pekar utåt). I dessa grafer består varje komponent av en cykel med träd som pekar in i noder i cyklerna. 
+\item En kollision sker antingen inuti en cykel eller inuti ett träd, och problemet blir enklare om vi särbehandlar dessa fall. 
+\end{enumerate}
+
+Vi börjar med att hantera fallet av träd. Låt trädets rot vara noden som pekar på en nod i en cykel, men är själv inte del av den cykeln. Vi kan definiera $depth[u]=$hur många noder man behöver gå från roten för att komma till nod u. Då kan man insé att bara noder med samma kan krocka. Inte bara kan de krocka, några av de kommer krocka. Dock kan två noder krocka djupare ner i trädet krocker, så att vissa inte krockar.
+\begin{figure}[H]
+  \centering
+\includegraphics[width=0.7\textwidth]{treeexample.png}
+  \caption{Ett godtyckligt träd. Övertyga dig själv att endast saker med samma avstånd från roten kan krocka.}
+  \label{fig:hoppers_t0}
+\end{figure}
+
+För att underlätta implementation introducerar jag termen $sakindex$, vilket innebär indexet på en given sak i inputen (används för att producera svaret sen).
+\begin{Träd}
+Med denna insikten kan vi göra en dfs, där vi för varje nod konstruerar en map/dictionary som mappar: {djup: sakindex}, d.v.s. på djup t finns nod k. För att skapa den här mappen på en given nod måste vi självklart besöka noder djupare ner i trädet. När de sedan returnerar sina maps lägger vi ihop de till våran. Om det blir en "krock", d.v.s. när vi lägger ihop barnets djupmap med vår, så har båda en nod med samma djup, så har en krock skett. Vi kan då spara att svaret för de två noderna blir rutan DFS:en är på just nu. Det kompliceras dock lite av att det kan komma en annan sak med samma tid från ett annat subträd. Då kan man behålla för noden DFS:en befinner sig i, vilka djup som har kolliderat i den här noden. 
+\end{Träd}
+
+\begin{cycle}
+När vi kört denna DFS för alla träd kan vi producera en lista där varje element säger "nod $u$ kommer gå in i cykel $k$ vid position $p$ vid tid $t$". Vi kan då sortera denna listan på $t$ (vi vill att noderna som kommer in tidigast hanters först). För att göra detta håller vi koll på vilka noder som finns i varje cykel i en map/dictionary {position i cykel: sakindex}. Vi håller även koll på vilken tid cykeln är i (0 i början). När vi lägger till en sak i cykeln jämför vi cykelns tid med tiden som saken läggs till. $T_{delta}=T_{itemin}-T_{cycle}$. Vi flyttar fram varje sak i cykeln $T_{delta}$ steg.
+\begin{itemize}
+              \item För varje sak $S$ i cykeln, med tid $T_sak$ och sakindex $i$.
+              \item $newCycleItems[(T_{sak}+T_{delta})\%cycleLength]=i$
+\end{itemize}
+Sedan kollar vi bara om det finns en sak på positionen vi försöker lägga till en ny sak är upptagen. Om ja sker det en kollision och vi tar bort båda, annars lägger vi till noden i cykeln. Det kan dock komma in flera noder vid samma tid, så vi får också hålla koll på "för den tid vi är på nu, vilka kollisioner har skett?" i ett set. Om en sak läggs till som är olika från cykelns tid kan vi tömma det settet.
+
+\end{cycle}
+
+Genom att kombinera dessa blir det typ $O(n^2*log_2(n))$.
+
+Om man inte vet exakt hur man ska implementera detta i praktiken kan man få lite tips här. Detta är ett sätt att implementera det, finns andra:
+\begin{enumerate}
+    \item Skapa en funktion $next(x)$ som ger positionen man får om ruta $x$ går ett steg framåt.
+    \item Kategorisera om varje nod tillhör en cykel eller ett träd. Vi gör detta genom att färglägga alla noder i $4$ färger:
+        \begin{itemize}
+              \item Unvisited (inte rörts av DFS:en)
+              \item Visiting  (rörts av en nod högre upp i DFS:en)
+              \item Tree      (DFS:en har lämnat den här noden)
+              \item Cycle     (Den här noden är en cykel)
+        \end{itemize}
+    Till en början är alla noder Unvisited. Vi gör sedan en DFS från varje nod. När denna DFS:en körts kommer alla noder på vägen till denna komponents cykel och dess cykel vara färgade "Tree". Den returnerar positionen av en godtycklig nod i cykeln. Denna fungerar följande:
+        \begin{itemize}
+            \item Om noden vi är på är Tree eller Cycle returnerar vi. 
+            \item Om noden är Visiting har vi besökt den här noden tidigare i denna DFS:en, d.v.s. är den noden en del av en cykel. Markera den här noden som Tree (Vi markerar den som cykel sen) och returnera noden.
+            \item Annars markerar vi noden just nu som visiting och DFS:ar vi vidare.
+            \item Sedan markerar vi den här noden som Tree och returnerar vad vi fick för returvärde av DFS:en vi callade i steget innan.
+        \end{itemize}
+        Efter varje call till DFS:en returnerar den antingen en nod i en cykel som ännu inte målats "Cycle" eller något som symboliserar att cykeln redan är besökt. Om den hittar en cykel målar vi alla noder i den cykeln "Cycle". Vi skapar dessutom en massa extra information:
+        \begin{itemize}
+            \item För varje ruta, vad är dess position i cykeln
+            \item Vad är längden av cykeln
+            \item För varje ruta, vilken cykel tillhör den
+        \end{itemize}
+        När denna process är färdig ska alla rutor antingen vara färgade Tree eller Cycle.
+    \item Hitta alla rötter i träden. Detta kan göras genom att gå igenom alla rutor, och kolla om en given ruta som är färgad Tree pekar på en ruta som är färgad Cycle. 
+    \item Skapa en bakvänd kantlista för att kunna DFS:a i träden. För varje ruta $x$, lägg till att $next(x)$ har en kant till x. 
+    
+\end{enumerate}
+
+För er som är intresserade finns det ett väldigt "lätt" sätt att lösa den i $O(n^2*log_2(RC)^2)$ om man kan använda tvåpotenshopp. Vi låter alla saker hoppa $K$ steg framåt. Om det då finns två saker på samma nod vet vi att det skedde en kollision vid tid en tid innan $K$. Vi kan då binärsöka över $K$ för att hitta det $K$ där en viss kollision sker och ta bort dessa noder. Tydligen ska detta gå att dra hela vägen till en fullösning (vad Victor gjorde), dock har jag inte orkat kolla på det och man lär sig mer om man löser den grafidéerna.
+
+\subsection*{Subtask 3}
+I denna subtasken är alla träd linjer, d.v.s., det kan inte ske kollisioner i träd. $N=10^5$, så vi behöver kunna lägga till noder i varje cykel i sublinjär tid. Vi kan inse att istället för att flytta alla noder i cykeln framåt, så räcker det att flytta vår inputsak bakåt och låta resten vara samma. Ett sätt att tolka det är att vi håller cykeln på $T=0$, och sen när vi lägger till en nod som inte fanns innan lägger vi den där den hade vart om $T=0$. Ett mer matematiskt perspektiv är att vi frågar om det finns ett i så att $P_{enteringcycle}=(P_{cycle_i}+T_{delta})\%cyclelength$. Vi tar då och subtraherar $T_delta$ från båda sidorna: $(P_{enteringcycle}-T_{delta})\%cyclelength=P_{cycle_i}$. Viktigt!!! I C++ och kanske python idk, så är $-1\%4=-1$, istället för $3$ som vi vill ha. Sättet att lösa det är följande $((-1\%3)+3)\%3$. D.v.s. först moddar vi för att komma inom intervallet $(-mod,+mod)$. Sedan plussar vi för att komma inom $[0, 2*mod)$. Sedan moddar vi igen för att komma inom $[0, mod)$. Kan ha gjort fel på några brackets, men du borde fatta principen.
+
+\subsection*{Subtask 4}
+I denna subtasken finns inga uppåtpilar. Det enda detta innebär är att alla cykler är av längd $2$. (Det leder också till lite svagare testdata, dock finns det såvitt jag vet ingen lösning som gynnas av det). Därmed kan vi lägga in saker i cyklerna i princip hur dumt vi vill, utan det viktiga är istället träden. Så vad gör vi långsamt i träden? Jo, det är att det kan ta upp till $O(n)$ tid att mergea två maps med tiderna. Detta kan reduceras till $O(n\cdot log_2(n)\cdot O(dictionary))$. \href{https://usaco.guide/plat/merging?lang=cpp}{Länk till förklaring}. Räcker det här? Nästan, men inte riktigt. Det blir lite jobbigare att mergea de nu, samtidigt som man håller koll på vilka saker som tidigare kolliderat på denna rutan. Det går att göra det ganska lätt tror jag, men blir väldigt pilligt oavsett vad att få det rätt. 
+
+\subsection*{Subtask 5}
+Genom att lösa subtask $3$ och $4$ har vi löst både cykler och träd i $O(n\cdot log_2(n))$ tid, därmed löser vi allt genom att kombinera lösningarna. 
+
+\subsection*{Testdata}
+Det visar sig inte helt triviellt att generera allt testdata man vill. En rimlig testdatagrupp är "det finns många noder med samma avstånd till roten". Det är triviellt att konstruera träd med den propertyn, men här har vi både kraven att $ingrad(x) \leq 3$. Dessutom ska den kunna läggas på en grid. Stort tack till Simon Lindholm som hittade en fraktal med egenskapen att $\frac{1}{4}$ av alla rutor har samma avstånd till mitten. 
+\begin{figure}[H]
+\includegraphics[width=1.3\textwidth]{fractal.png}
+  \caption{Fraktlen vid olika skalor}
+  \label{fig:hoppers_t0}
+\end{figure}
+
+\end{document}
